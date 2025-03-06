@@ -1,0 +1,121 @@
+name: Loan Payment Notification Process
+
+on:
+  # Run on the third-to-last day of each month at 8:00 AM SAST (South African Standard Time, UTC+2)
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    - cron: '0 6 28-31 * *'
+  
+  # Allow manual triggering of the workflow
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Run in test mode (bypass date check)'
+        required: true
+        default: 'true'
+        type: boolean
+      send_emails:
+        description: 'Actually send emails'
+        required: true
+        default: 'false'
+        type: boolean
+      send_admin_summary:
+        description: 'Send admin summary email'
+        required: true
+        default: 'true'
+        type: boolean
+
+jobs:
+  run-loan-script:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Create assets directory
+        run: mkdir -p assets
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Download logo for PDF generation
+        run: |
+          mkdir -p assets
+          curl -o assets/gunnery_logo.png https://gunneryguns.com/Images/Logos/logo_main_grey.png
+          
+      # Check if today is the third-last day of the month when running on schedule
+      - name: Check if third-last day of month
+        if: github.event_name == 'schedule'
+        id: date_check
+        run: |
+          # Get the current date
+          CURRENT_DAY=$(date +%d)
+          CURRENT_MONTH=$(date +%m)
+          CURRENT_YEAR=$(date +%Y)
+          
+          # Get days in current month
+          DAYS_IN_MONTH=$(date -d "$CURRENT_YEAR-$CURRENT_MONTH-01 + 1 month - 1 day" +%d)
+          
+          # Calculate third-last day
+          THIRD_LAST_DAY=$((DAYS_IN_MONTH - 2))
+          
+          # Set output variable
+          if [ "$CURRENT_DAY" -eq "$THIRD_LAST_DAY" ]; then
+            echo "is_third_last=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_third_last=false" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Today: $CURRENT_DAY, Third-last day: $THIRD_LAST_DAY, Days in month: $DAYS_IN_MONTH"
+          
+      # Run loan script for scheduled runs only if today is the third-last day of the month
+      - name: Run loan script (scheduled)
+        if: github.event_name == 'schedule' && steps.date_check.outputs.is_third_last == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python loans.py
+          
+      # Run loan script for manual runs with provided parameters
+      - name: Run loan script (manual)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          # Construct command with parameters
+          CMD="python loans.py"
+          
+          if [ "${{ inputs.test_mode }}" == "true" ]; then
+            CMD="$CMD --test"
+          fi
+          
+          if [ "${{ inputs.send_emails }}" == "true" ]; then
+            CMD="$CMD --send-emails"
+          else
+            CMD="$CMD --no-send-emails"
+          fi
+          
+          if [ "${{ inputs.send_admin_summary }}" == "true" ]; then
+            CMD="$CMD --admin-summary"
+          fi
+          
+          # Run the command
+          echo "Running: $CMD"
+          $CMD 

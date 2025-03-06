@@ -6,11 +6,9 @@ from dotenv import load_dotenv
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.application import MIMEApplication
 from datetime import datetime, timedelta
 from supabase import create_client, Client
 import time
-import io
 import json
 from logging.handlers import RotatingFileHandler
 import uuid
@@ -19,7 +17,6 @@ import platform
 import sys
 
 # Import the template functions
-from loan_templates import create_invoice_email
 
 def setup_logging():
     """Configure structured logging with rotation."""

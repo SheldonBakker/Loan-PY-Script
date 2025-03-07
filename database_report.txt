@@ -1,9 +1,0 @@
-=== DATABASE REPORT ===
-Database operations:
-  check_database_connection: 1
-  db_query: 1
-
-Database error rate: 50.0% (1/2)
-
-Record counts by table:
-  loans: 2

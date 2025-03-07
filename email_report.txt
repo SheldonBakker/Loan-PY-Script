@@ -1,8 +1,0 @@
-=== EMAIL REPORT ===
-Total emails: 2
-Successful emails: 1
-Failed emails: 1
-
-Top recipients:
-  client@example.com: 1
-  client2@example.com: 1
